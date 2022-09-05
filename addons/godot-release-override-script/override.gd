@@ -11,6 +11,7 @@ class Replacement:
 	func _init(p_key: String, p_val: String) -> void:
 		key = p_key
 		val = p_val
+		print("%s %s" % [key, val])
 
 func _initialize() -> void:
 	print("Processing overrides")
@@ -108,10 +109,12 @@ func _initialize() -> void:
 				reconstructed_file.append(line)
 				continue
 			
+			var found := false
 			for replacement in replacements:
 				var regex := RegEx.new()
-				regex.compile("%s\\b" % replacement.key)
+				regex.compile("%s\\b" % replacement.key.split(":", false, 1)[0])
 
+				print("Searching: %s" % line)
 				var regex_match := regex.search(line)
 				if regex_match == null:
 					continue
@@ -119,6 +122,13 @@ func _initialize() -> void:
 				reconstructed_file.append("%s %s = %s" % [
 					def_string, replacement.key, replacement.val
 				])
+
+				replacements.erase(replacement)
+				found = true
+				break
+			
+			if not found:
+				reconstructed_file.append(line)
 		
 		file.store_string(reconstructed_file.join("\n"))
 		

@@ -19,7 +19,7 @@ func _init() -> void:
 			"--ci-project-path",
 			ProjectSettings.globalize_path("res://"),
 			
-			"--override-option", "demo-folder/test_script.gd:test='i/am/test'",
+			"--override-option", "demo-folder/test_script.gd:test:String='i/am/test'",
 			"--override-option", "demo-folder/test_script.gd:test0='i/am/test0'",
 			"--override-option", "demo-folder/test_script.gd:TEST_1='i/am/test1'",
 			
