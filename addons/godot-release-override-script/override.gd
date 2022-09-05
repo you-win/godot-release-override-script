@@ -1,7 +1,7 @@
 extends SceneTree
 
 const CI_PROJECT_PATH := "ci-project-path"
-const OVERRIDE_OPTIONS := "override-options"
+const OVERRIDE_OPTIONS := "override-option"
 const OVERRIDE_OPTIONS_DELIMITER := " "
 
 class Replacement:
@@ -23,7 +23,7 @@ func _initialize() -> void:
 	print("Handling:\n%s" % str(args))
 	
 	var project_path := ProjectSettings.globalize_path("res://")
-	## @type: Dictionary<String, Replacement> - Path to file: Replacement
+	## @type: Dictionary<String, Array<Replacement>> - Path to file: Array<Replacement>
 	var overrides := {}
 	
 	var count: int = 0
@@ -55,12 +55,19 @@ func _initialize() -> void:
 		elif arg.begins_with(OVERRIDE_OPTIONS):
 			var split: PoolStringArray = value.split(OVERRIDE_OPTIONS_DELIMITER, false)
 			for override in split:
-				var override_split: PoolStringArray = override.split("=", false, 1)
+				var override_split: PoolStringArray = override.split(":", false, 1)
 				if override_split.size() != 2:
-					printerr("Invalid override option, aborting")
+					printerr("Invalid override option %s, aborting" % override)
 					return
 				
-				overrides[arg] = Replacement.new(override_split[0], override_split[1])
+				var values: PoolStringArray = override_split[1].split("=")
+				if values.size() != 2:
+					printerr("Invalid override value %s, aborting" % override_split[1])
+					return
+				
+				if not overrides.has(override_split[0]):
+					overrides[override_split[0]] = []
+				overrides[override_split[0]].append(Replacement.new(values[0], values[1]))
 				
 			count += 1
 			continue
@@ -78,12 +85,12 @@ func _initialize() -> void:
 		return
 	
 	for path in overrides.keys():
-		var val: Replacement = overrides[path]
+		var replacements: Array = overrides[path]
 		
 		print("Setting override for file: %s" % path)
 		
 		var file_path: String = "%s/%s" % [project_path, path]
-		if file.open(file_path, File.WRITE_READ) != OK:
+		if file.open(file_path, File.READ_WRITE) != OK:
 			printerr("Invalid file %s/%s, aborting" % [project_path, path])
 			return
 		
@@ -91,16 +98,27 @@ func _initialize() -> void:
 		
 		var file_lines := file.get_as_text().split("\n")
 		for line in file_lines:
-			if not line.begins_with("var") or not line.begins_with("const"):
+			var def_string := ""
+			if line.begins_with("var"):
+				def_string = "var"
+			if line.begins_with("const"):
+				def_string = "const"
+			
+			if def_string.empty():
+				reconstructed_file.append(line)
 				continue
 			
-			var pos: int = line.find(val.key)
-			if pos < 4:
-				continue
-			
-			print("Processing %s:%s for line:\n%s" % [val.key, val.val, line])
-			
-			reconstructed_file.append("%s = %s" % [line.substr(0, pos), val.val])
+			for replacement in replacements:
+				var regex := RegEx.new()
+				regex.compile("%s\\b" % replacement.key)
+
+				var regex_match := regex.search(line)
+				if regex_match == null:
+					continue
+
+				reconstructed_file.append("%s %s = %s" % [
+					def_string, replacement.key, replacement.val
+				])
 		
 		file.store_string(reconstructed_file.join("\n"))
 		
